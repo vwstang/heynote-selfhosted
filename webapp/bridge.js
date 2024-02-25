@@ -1,157 +1,172 @@
-import { SETTINGS_CHANGE_EVENT, OPEN_SETTINGS_EVENT } from "../electron/constants";
+import {
+  SETTINGS_CHANGE_EVENT,
+  OPEN_SETTINGS_EVENT,
+} from "../electron/constants";
 
-const mediaMatch = window.matchMedia('(prefers-color-scheme: dark)')
-let themeCallback = null
+const mediaMatch = window.matchMedia("(prefers-color-scheme: dark)");
+let themeCallback = null;
 mediaMatch.addEventListener("change", async (event) => {
-    if (themeCallback) {
-        themeCallback((await Heynote.themeMode.get()).computed)
-    }
-})
+  if (themeCallback) {
+    themeCallback((await Heynote.themeMode.get()).computed);
+  }
+});
 
-const isMobileDevice = window.matchMedia("(max-width: 600px)").matches
+const isMobileDevice = window.matchMedia("(max-width: 600px)").matches;
 
-let autoUpdateCallbacks = null
-let currencyData = null
+let autoUpdateCallbacks = null;
+let currencyData = null;
 
-let platform
-const uaPlatform = window.navigator?.userAgentData?.platform || window.navigator.platform
+let platform;
+const uaPlatform =
+  window.navigator?.userAgentData?.platform || window.navigator.platform;
 if (uaPlatform.indexOf("Win") !== -1) {
-    platform = {
-        isMac: false,
-        isWindows: true,
-        isLinux: false,
-    }
-}  else if (uaPlatform.indexOf("Linux") !== -1) {
-    platform = {
-        isMac: false,
-        isWindows: false,
-        isLinux: true,
-    }
+  platform = {
+    isMac: false,
+    isWindows: true,
+    isLinux: false,
+  };
+} else if (uaPlatform.indexOf("Linux") !== -1) {
+  platform = {
+    isMac: false,
+    isWindows: false,
+    isLinux: true,
+  };
 } else {
-    platform = {
-        isMac: true,
-        isWindows: false,
-        isLinux: false,
-    }
+  platform = {
+    isMac: true,
+    isWindows: false,
+    isLinux: false,
+  };
 }
-platform.isWebApp = true
-
+platform.isWebApp = true;
 
 class IpcRenderer {
-    constructor() {
-        this.callbacks = {}
-    }
+  constructor() {
+    this.callbacks = {};
+  }
 
-    on(event, callback) {
-        if (!this.callbacks[event]) {
-            this.callbacks[event] = []
-        }
-        this.callbacks[event].push(callback)
+  on(event, callback) {
+    if (!this.callbacks[event]) {
+      this.callbacks[event] = [];
     }
+    this.callbacks[event].push(callback);
+  }
 
-    send(event, ...args) {
-        if (this.callbacks[event]) {
-            for (const callback of this.callbacks[event]) {
-                callback(null, ...args)
-            }
-        }
+  send(event, ...args) {
+    if (this.callbacks[event]) {
+      for (const callback of this.callbacks[event]) {
+        callback(null, ...args);
+      }
     }
+  }
 }
 
-const ipcRenderer = new IpcRenderer()
+const ipcRenderer = new IpcRenderer();
 
 // get initial settings
-let settingsData = localStorage.getItem("settings")
+let settingsData = localStorage.getItem("settings");
 let initialSettings = {
-    keymap: "default",
-    emacsMetaKey: "alt",
-    showLineNumberGutter: true,
-    showFoldGutter: true,
-    bracketClosing: false,
-}
+  keymap: "default",
+  emacsMetaKey: "alt",
+  showLineNumberGutter: true,
+  showFoldGutter: true,
+  bracketClosing: false,
+};
 if (settingsData !== null) {
-    initialSettings = Object.assign(initialSettings, JSON.parse(settingsData))
+  initialSettings = Object.assign(initialSettings, JSON.parse(settingsData));
 }
-
 
 const Heynote = {
-    platform: platform,
-    defaultFontFamily: "Hack", 
-    defaultFontSize: isMobileDevice ? 16 : 12,
+  platform: platform,
+  defaultFontFamily: "Hack",
+  defaultFontSize: isMobileDevice ? 16 : 12,
 
-    buffer: {
-        async load() {
-            const content = localStorage.getItem("buffer")
-            return content === null ? "\n∞∞∞text-a\n" : content
-        },
-
-        async save(content) {
-            localStorage.setItem("buffer", content)
-        },
-
-        async saveAndQuit(content) {
-            
-        },
-
-        onChangeCallback(callback) {
-            
-        },
+  buffer: {
+    async load() {
+      // const test = await fetch("/api/asdf")
+      //   .then((response) => {
+      //     if (!response.ok) {
+      //       throw new Error("Couldn't fetch server buffer...");
+      //     }
+      //     return response.json();
+      //   })
+      //   .then((data) => {
+      //     console.log({ data });
+      //   });
+      console.log("WE ARE LOADING!!!!!!!!!!!!!!!!!!!!!!!!!!! IS THIS WORKIGN");
+      const content = localStorage.getItem("buffer");
+      return content === null ? "\n∞∞∞text-a\n" : content;
     },
 
-    onWindowClose(callback) {
-        //ipcRenderer.on(WINDOW_CLOSE_EVENT, callback)
+    async save(content) {
+      console.log("SAVING BUFFER TO LOCAL STORAGE");
+      localStorage.setItem("buffer", content);
+      console.log("SAVING BUFFER TO SERVER FILE (Not yet implemented)");
     },
 
-    settings: initialSettings,
+    async saveAndQuit(content) {},
 
-    onOpenSettings(callback) {
-        ipcRenderer.on(OPEN_SETTINGS_EVENT, callback)
+    onChangeCallback(callback) {},
+  },
+
+  onWindowClose(callback) {
+    //ipcRenderer.on(WINDOW_CLOSE_EVENT, callback)
+  },
+
+  settings: initialSettings,
+
+  onOpenSettings(callback) {
+    ipcRenderer.on(OPEN_SETTINGS_EVENT, callback);
+  },
+
+  onSettingsChange(callback) {
+    ipcRenderer.on(SETTINGS_CHANGE_EVENT, (event, settings) =>
+      callback(settings)
+    );
+  },
+
+  setSettings(settings) {
+    localStorage.setItem("settings", JSON.stringify(settings));
+    ipcRenderer.send(SETTINGS_CHANGE_EVENT, settings);
+  },
+
+  themeMode: {
+    set: (mode) => {
+      localStorage.setItem("theme", mode);
+      themeCallback(mode);
+      console.log("set theme to", mode);
     },
-
-    onSettingsChange(callback) {
-        ipcRenderer.on(SETTINGS_CHANGE_EVENT, (event, settings) => callback(settings))
+    get: async () => {
+      const theme = localStorage.getItem("theme") || "system";
+      const systemTheme = mediaMatch.matches ? "dark" : "light";
+      return {
+        theme: theme,
+        computed: theme === "system" ? systemTheme : theme,
+      };
     },
-
-    setSettings(settings) {
-        localStorage.setItem("settings", JSON.stringify(settings))
-        ipcRenderer.send(SETTINGS_CHANGE_EVENT, settings)
+    onChange: (callback) => {
+      themeCallback = callback;
     },
-
-    themeMode: {
-        set: (mode) => {
-            localStorage.setItem("theme", mode)
-            themeCallback(mode)
-            console.log("set theme to", mode)
-        },
-        get: async () => {
-            const theme = localStorage.getItem("theme") || "system"
-            const systemTheme = mediaMatch.matches ? "dark" : "light"
-            return {
-                theme: theme,
-                computed: theme === "system" ? systemTheme : theme,
-            }
-        },
-        onChange: (callback) => {
-            themeCallback = callback
-        },
-        removeListener() {
-            themeCallback = null
-        },
-        initial: localStorage.getItem("theme") || "system",
+    removeListener() {
+      themeCallback = null;
     },
+    initial: localStorage.getItem("theme") || "system",
+  },
 
-    getCurrencyData: async () => {
-        if (currencyData !== null) {
-            return currencyData
-        }
-        const response = await fetch("https://currencies.heynote.com/rates.json", {cache: "no-cache"})
-        currencyData = JSON.parse(await response.text())
-        return currencyData
-    },
+  getCurrencyData: async () => {
+    if (currencyData !== null) {
+      return currencyData;
+    }
+    const response = await fetch("https://currencies.heynote.com/rates.json", {
+      cache: "no-cache",
+    });
+    currencyData = JSON.parse(await response.text());
+    return currencyData;
+  },
 
-    async getVersion() {
-        return __APP_VERSION__ + " (" + __GIT_HASH__ + ")"
-    },
-}
+  async getVersion() {
+    return __APP_VERSION__ + " (" + __GIT_HASH__ + ")";
+  },
+};
 
-export { Heynote, ipcRenderer}
+export { Heynote, ipcRenderer };
